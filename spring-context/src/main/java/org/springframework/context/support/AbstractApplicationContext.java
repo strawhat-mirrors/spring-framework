@@ -517,40 +517,62 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
+			//容器启动前准备工作，
+			// 也就是设置容器当前的状态和记录启动开始时间以及初始化资源数据以及验证下我们需要验证的一些资源key是否存在
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
+			// 这步比较关键，这步完成后，配置文件就会解析成一个个Bean定义，注册到 BeanFactory 中
+			// 当然，这里说的Bean还没初始化，只是配置信息都提前出来了，
+			// 注册也只是将这些信息都保存到 beanFactory 的注册中心 （实现上是一个 <beanName,beanDefinition>的map）
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
+			// 对 BeanFactory 做进一步设置 准备
+			// 设置 BeanFactory 的类加载器，添加几个 BeanPostProcessor 手动注册几个特殊 bean
 			prepareBeanFactory(beanFactory);
 
 			try {
-				// Allows post-processing of the bean factory in context subclasses.
+				//【这里需要知道BeanFactoryPostProcessor 这个知识点，Bean如果实现了此接口，
+				// 那么在容器初始化以后，Spring会负责调用里面的postProcessBeanFactory方法】
+
+				// 这里是提供给子类的扩展点，到这里的时候，所有Bean都加载、注册完成了，但是都还没初始化
+				// 具体的子类可以在这步的时候加一些特殊的 BeanFactoryPostProcessor 的实现类做点什么
 				postProcessBeanFactory(beanFactory);
 
 				// Invoke factory processors registered as beans in the context.
+				// 调用 BeanFactoryPostProcessor 各个实现类的 postProcessBeanFactory(beanFactory)方法
 				invokeBeanFactoryPostProcessors(beanFactory);
 
 				// Register bean processors that intercept bean creation.
+				// 注册 BeanPostProcessor 的实现，注意看和 BeanFactoryPostProcessor 的区别
+				// 此接口有两个方法 postProcessBeforeInitialization 和 postProcessAfterInitialization
+				// 这两个方法分别在Bean初始化之前和初始化之后得到执行。注意，到这里Bean还没初始化
 				registerBeanPostProcessors(beanFactory);
 
 				// Initialize message source for this context.
+				// 初始化 ApplicationContext 的 MessageSource
 				initMessageSource();
 
 				// Initialize event multicaster for this context.
+				// 初始化 ApplicationContext 的事件广播器，
 				initApplicationEventMulticaster();
 
 				// Initialize other special beans in specific context subclasses.
+				// 从方法名就知道，典型的模板方法（钩子方法）
+				// 具体子类可以在这里初始化一些特殊的Bean(在初始化 singleton beans之前)
 				onRefresh();
 
 				// Check for listener beans and register them.
+				// 注册事件监听器，监听器需要实现 ApplicationListener接口
 				registerListeners();
 
 				// Instantiate all remaining (non-lazy-init) singletons.
+				// 初始化所有的非懒加载的 singleton bean
 				finishBeanFactoryInitialization(beanFactory);
 
 				// Last step: publish corresponding event.
+				//容器启动过后，发布事件
 				finishRefresh();
 			}
 
@@ -561,12 +583,14 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				}
 
 				// Destroy already created singletons to avoid dangling resources.
+				// 销毁已经初始化的singleton的Bean , 以免这些bean会一直占用资源
 				destroyBeans();
 
 				// Reset 'active' flag.
 				cancelRefresh(ex);
 
 				// Propagate exception to caller.
+				// 抛出异常
 				throw ex;
 			}
 
@@ -597,6 +621,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 		// Validate that all properties marked as required are resolvable:
 		// see ConfigurablePropertyResolver#setRequiredProperties
+		// 校验 配置文件
 		getEnvironment().validateRequiredProperties();
 
 		// Store pre-refresh ApplicationListeners...
@@ -630,7 +655,10 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * @see #getBeanFactory()
 	 */
 	protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+		// 刷新 BeanFactory 部分场景会销毁重建 BeanFactory
 		refreshBeanFactory();
+
+		// 获取刚刚创建的Bean
 		ConfigurableListableBeanFactory beanFactory = getBeanFactory();
 		if (logger.isDebugEnabled()) {
 			logger.debug("Bean factory for " + getDisplayName() + ": " + beanFactory);
